@@ -1,0 +1,16 @@
+# build products
+star
+make/*.o
+make/*.mod
+make/*.smod
+
+# run outputs
+LOGS/
+LOGS_expand/
+photos/
+png/
+*.mod
+restart_photo
+run.log
+run_*.log
+.DS_Store

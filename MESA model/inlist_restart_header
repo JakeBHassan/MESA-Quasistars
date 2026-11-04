@@ -1,0 +1,55 @@
+! Master inlist of a photo restart (./re <photo>, or ./re for the latest photo): MESA reads inlist_common, inlist_evolve, then
+! inlist_restart (the later file wins).  ./re copies the photo to restart_photo and runs ./star with this inlist; do not use ./rn,
+! which deletes restart_photo first.
+&star_job
+    read_extra_star_job_inlist(1) = .true.
+    extra_star_job_inlist_name(1) = 'inlist_common'
+
+    read_extra_star_job_inlist(2) = .true.
+    extra_star_job_inlist_name(2) = 'inlist_evolve'
+
+    read_extra_star_job_inlist(3) = .true.
+    extra_star_job_inlist_name(3) = 'inlist_restart'
+
+/ ! end of star_job namelist
+
+&eos
+      read_extra_eos_inlist(1) = .true.
+      extra_eos_inlist_name(1) = 'inlist_common'
+
+      read_extra_eos_inlist(2) = .true.
+      extra_eos_inlist_name(2) = 'inlist_evolve'
+
+/ ! end of eos namelist
+
+
+&kap
+      read_extra_kap_inlist(1) = .true.
+      extra_kap_inlist_name(1) = 'inlist_common'
+
+      read_extra_kap_inlist(2) = .true.
+      extra_kap_inlist_name(2) = 'inlist_evolve'
+
+/ ! end of kap namelist
+
+
+&controls
+    read_extra_controls_inlist(1) = .true.
+    extra_controls_inlist_name(1) = 'inlist_common'
+
+    read_extra_controls_inlist(2) = .true.
+    extra_controls_inlist_name(2) = 'inlist_evolve'
+
+    read_extra_controls_inlist(3) = .true.
+    extra_controls_inlist_name(3) = 'inlist_restart'
+
+/ ! end of controls namelist
+
+
+&pgstar
+    read_extra_pgstar_inlist(1) = .true.
+    extra_pgstar_inlist_name(1) = 'inlist_pgstar'
+    read_extra_pgstar_inlist(2) = .true.
+    extra_pgstar_inlist_name(2) = 'inlist_evolve'
+
+/ ! end of pgstar namelist

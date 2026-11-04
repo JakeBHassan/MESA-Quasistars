@@ -1,0 +1,101 @@
+&star_job
+    dlg_core_mass_per_step = 2d-2 ! BH insertion
+/ ! end of star_job namelist
+
+&eos
+/ ! end of eos namelist
+
+&kap
+    Zbase = 0.0
+/ ! end of kap namelist
+
+&controls
+    initial_mass = 1d6
+    mass_change = 0d0
+
+    initial_y = 0.2467 ! SBBN helium (Skillman et al. 2026)
+    initial_z = 0
+
+    ! physics switches of the evolve stage (the initial and expand stages set their own):
+    atm_T_tau_opacity = 'fixed' ! 'fixed' or 'varying' atmosphere
+    atm_T_tau_max_steps = 5000
+
+    MLT_option = 'ML1'
+    mixing_length_alpha = 1
+    use_Ledoux_criterion = .true.
+
+    ! superadiabatic reduction
+    use_superad_reduction = .false.
+    superad_reduction_Gamma_limit_scale = 25 ! alpha_SR value in Hassan et al. (2026)
+
+    ! black hole and inner boundary:
+    x_logical_ctrl(1) = .true. ! grow the black hole
+    x_ctrl(1) = 0.1 ! radiative efficiency epsilon
+    x_ctrl(2) = 300 ! scale factor N for R_i = N * r_s(M_BH)
+    x_ctrl(3) = 0.1 ! convective efficiency beta
+
+    ! BH insertion:
+    x_ctrl(4) = 1d-3 ! initial M_BH / initial_mass ratio
+    x_ctrl(5) = 0 ! BH-insertion timestep in years (0 = automatic: 1 yr at 1e6 Msun, shorter above)
+
+    ! expand stage stop:
+    x_ctrl(6) = 5d-3 ! stop when L_center and the radius are flat to 0.5%...
+    x_ctrl(7) = 20   ! ...over the last 20 steps...
+    x_ctrl(8) = 1.5 ! ...and L_center < 1.5 L_Edd (early in the stage L_center sits on a flat plateau far above L_Edd, which the flatness test alone would accept)
+
+    ! evolve-stage timestep caps (src/timestep_control.inc):
+    x_ctrl(9) = 0.01 ! dM_BH per step <= 0.01 of the envelope mass (the solver fails at 2-4%)
+    x_ctrl(10) = 0.05 ! dM_BH per step <= 0.05 M_BH
+    x_ctrl(11) = 0.05 ! the caps and the dt floor switch on at M_BH/M_star > 0.05
+    x_ctrl(12) = 1d-4 ! ends the run (saving evolved.mod) once a step's dt falls below 1e-4 x the dM_BH-cap dt (0 = no floor)
+    x_ctrl(13) = 0 ! stop the evolve stage at this M_BH/M_star (<= 0: run until the envelope is exhausted)
+    x_ctrl(14) = 3d11 ! dt cap (sec) before the caps switch on (larger early steps fail in the solver)
+    x_ctrl(15) = 0.1 ! eruptive-wind efficiency (used only with use_other_wind = .true.)
+
+    use_other_cgrav = .false. ! TOV correction
+    
+    ! wind settings
+    use_other_wind = .false. ! enable eruptive winds from Cheng et al. (2024). They activate during inlist_evolve
+    ! for a wind run uncomment the five lines below:
+    ! x_ctrl(12) = 0 ! no dt floor (eruptions need 10-20 yr steps)
+    ! x_ctrl(13) = 0.99 ! stop at M_BH/M_star = 0.99 (the last 1% of the envelope takes thousands of tiny steps)
+    ! max_timestep_factor = 1.5 ! dt may grow 1.5x per step (with the wind, 1.2 leads to ever-shrinking steps at M_BH/M_star = 0.1)
+    ! delta_lg_star_mass_limit = 1d-3
+    ! delta_lg_star_mass_hard_limit = 2d-3
+
+    limit_for_rel_error_in_energy_conservation = 1d99
+    hard_limit_for_rel_error_in_energy_conservation = 1d99
+    
+    max_timestep = 1d13 ! the dM_BH caps govern in the evolve stage
+    delta_lgRho_cntr_limit = 1d99 ! off: the innermost cell is a boundary cell, its density change is not a physical rate
+    min_timestep_limit = 1d-6
+    time_delta_coeff = 1
+    max_number_retries = 10000
+    redo_limit = 10000 ! the L iteration redoes most steps once or twice
+    solver_max_tries_before_reject = 25 ! a failing solve gives up at 25 iterations (converging solves need < 25)
+    tol_max_correction = 1d-2
+    gold_iter_for_resid_tol2 = 3 ! loosen the residual test at iterations 3 and 4: the corrections have converged by then
+    gold_iter_for_resid_tol3 = 4
+    relax_tol_correction_norm = 1d-4 ! BH insertion only
+    relax_tol_max_correction = 3d-2
+    
+    max_allowed_nz = 20000
+    mesh_delta_coeff = 0.5
+    max_center_cell_dq = 1d-12 ! resolve the cells above R_center
+    R_function_weight = 400
+    R_function_param = 0.1d0
+    max_surface_cell_dq = 1d-5
+
+    !use_T_tau_gradr_factor = .true.
+    !merge_if_dlnR_too_small = .true.
+    !set_rho_to_dm_div_dV = .false.
+
+    write_profiles_flag = .true.
+    history_interval = 1
+    profile_interval = 50
+    photo_interval = 1000
+    max_num_profile_models = 10000
+/ ! end of controls namelist
+
+&pgstar
+/ ! end of pgstar namelist

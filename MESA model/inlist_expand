@@ -1,0 +1,32 @@
+&star_job
+    load_saved_model = .true.
+    load_model_filename = 'initial.mod'
+
+    set_initial_model_number = .true.
+    initial_model_number = 0
+
+    save_model_when_terminate = .true.
+    save_model_filename = 'expanded.mod'
+
+    pgstar_flag = .false.
+/ ! end of star_job namelist
+
+&eos
+/ ! end of eos namelist
+
+&kap
+/ ! end of kap namelist
+
+&controls
+    x_logical_ctrl(1) = .false. ! disable BH growth until the envelope settles from the change in inner luminosity
+    atm_T_tau_opacity = 'fixed' ! this stage needs 'fixed' (for stability)
+    use_other_cgrav = .false. ! no TOV correction in this stage (for stability)
+    use_other_wind = .false. ! no wind in this stage
+    max_model_number = 600
+    varcontrol_target = 3d-3 ! looser step limits: only the settled end state matters
+    delta_lgTeff_limit = 0.03
+    max_timestep_factor = 2
+/ ! end of controls namelist
+
+&pgstar
+/ ! end of pgstar namelist

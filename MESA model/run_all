@@ -1,0 +1,4 @@
+#!/bin/bash
+./rn inlist_initial_header
+./rn inlist_expand_header
+./rn inlist_evolve_header

@@ -1,0 +1,27 @@
+&star_job
+    load_saved_model = .true.
+    load_model_filename = 'expanded.mod'
+
+    set_initial_model_number = .true.
+    initial_model_number = 0
+    limit_initial_dt = .true.
+    years_for_initial_dt = 1400
+
+    pgstar_flag = .true.
+
+    save_model_when_terminate = .true.
+    save_model_filename = 'evolved.mod'
+/ ! end of star_job namelist
+
+&eos
+/ ! end of eos namelist
+
+&kap
+/ ! end of kap namelist
+
+&controls
+    x_logical_ctrl(1) = .true. ! accrete onto the black hole
+/ ! end of controls namelist
+
+&pgstar
+/ ! end of pgstar namelist

@@ -1,0 +1,33 @@
+&star_job
+    create_pre_main_sequence_model = .true.
+    relax_initial_core = .true. ! insert the BH while building the model
+    ! the pre-MS star is only a starting guess that the expand stage relaxes away; the mass relax from the
+    ! ~175 Msun pre-MS model to initial_mass is most of this stage, and it fails in retries at dlgm_per_step 1d-2
+    ! or at a coarser mesh than inlist_common's
+    dlgm_per_step = 3d-3
+    pre_ms_relax_num_steps = 50
+    pre_ms_relax_to_start_radiative_core = .false.
+
+    save_model_when_terminate = .true.
+    save_model_filename = 'initial.mod'
+
+    pgstar_flag = .false.
+/ ! end of star_job namelist
+
+&eos
+/ ! end of eos namelist
+
+&kap
+/ ! end of kap namelist
+
+&controls
+    max_model_number = 1
+    history_interval = -1
+    x_logical_ctrl(1) = .false. ! disable BH growth in this stage
+    atm_T_tau_opacity = 'fixed' ! this stage needs 'fixed' (for stability)
+    use_other_cgrav = .false. ! no TOV correction in this stage (for stability)
+    use_other_wind = .false. ! no wind in this stage
+/ ! end of controls namelist
+
+&pgstar
+/ ! end of pgstar namelist

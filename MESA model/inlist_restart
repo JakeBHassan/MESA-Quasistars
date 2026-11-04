@@ -1,0 +1,17 @@
+&star_job
+    load_saved_model = .false.
+    relax_initial_core = .false.
+/ ! end of star_job namelist
+
+&eos
+/ ! end of eos namelist
+
+&kap
+/ ! end of kap namelist
+
+&controls
+    ! report_ierr = .true.
+/ ! end of controls namelist
+
+&pgstar
+/ ! end of pgstar namelist
