@@ -303,7 +303,7 @@ subroutine data_for_extra_history_columns(id, n, names, vals, ierr)
     names(15) = 'L_rad_i';          vals(15) = (s% L(nz) - s% L_conv(nz)) / Lsun
     names(16) = 'L_conv_i';         vals(16) = s% L_conv(nz) / Lsun
 
-    ! Values of p_gas/p_rad and the adiabatic index in the middle of the convective envelope
+    ! Values of p_gas/p_rad and the adiabatic index at the radius midpoint of the convective envelope
     k_mid = minloc(abs(s% r(1:nz) - 0.5d0 * (s% R_center + s% r(1))), 1)
     names(17) = 'pgas_div_prad';    vals(17) = s% pgas(k_mid) / s% prad(k_mid)
     names(18) = 'gamma_ad';         vals(18) = s% gamma1(k_mid)
