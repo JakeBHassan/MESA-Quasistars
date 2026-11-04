@@ -1,3 +1,6 @@
+! use the Tolman–Oppenheimer–Volkoff (TOV) equation. 
+! See first equation in https://en.wikipedia.org/wiki/Tolman%E2%80%93Oppenheimer%E2%80%93Volkoff_equation.  
+! want to replace -G*m/r^2 by -G*m/r^2*(1 + P/(rho c^2))(1 + 4 pi r^3 P /(m c^2))/(1 - 2 G m/(r c^2))
 subroutine my_other_cgrav(id, ierr)
     use utils_lib, only: is_bad
     integer, intent(in) :: id
@@ -15,19 +18,19 @@ subroutine my_other_cgrav(id, ierr)
     do k=1,s% nz
         r = s% r(k)
         G = standard_cgrav
-        m = s% m(k)
-        if (k > 1) then
+        m = s% m(k) ! m_grav hasn't been set when other_cgrav is called
+        if (k > 1) then ! get approximate P, rho and u at face
             rho = 0.5d0*(s% rho(k-1) + s% rho(k))
             P = 0.5d0*(s% Peos(k-1) + s% Peos(k))
             u = 0.5d0*(s% energy(k-1) + s% energy(k))
             f1 = 1d0 + (u + P/rho)/clight**2
             f2 = 1d0 + pi4*pow3(r)*P/(m*clight**2)
-        else
+        else ! k == 1
             f1 = 1d0
             f2 = 1d0
         end if
         f3 = 1d0 - 2d0*G*m/(r*clight**2)
-
+        
         taper = min(1d0, (2d0*G*m/(s% r_start(k)*clight**2)/1d-4)**2)
         s% cgrav(k) = G*(1d0 + ramp*taper*(f1*f2/f3 - 1d0))
         if (is_bad(s% cgrav(k))) then

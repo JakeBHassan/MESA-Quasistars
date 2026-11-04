@@ -11,7 +11,7 @@ real(dp) function starting_L_center(s, dt)
     else if (s% L_center > 0d0) then
         starting_L_center = s% L_center
     else
-        starting_L_center = L_Edd_step
+        starting_L_center = L_Edd(s% mstar)
     end if
 end function starting_L_center
 
@@ -47,7 +47,7 @@ subroutine check_L_center(s, result)
     n_iterations = n_iterations + 1
     converged = abs(f) <= tolerance
 
-    write(*,'(a,i3,a,es11.3e2,a,es11.3e2,a,es10.2e2)') '  L iteration ', n_iterations, ': L/L_Edd=', s% L_center / L_Edd_step, '  L_sat/L_conv=', L_sat_i / L_conv_i, '  f=', f
+    write(*,'(a,i3,a,es11.3e2,a,es11.3e2,a,es10.2e2)') '  L iteration ', n_iterations, ': L/L_Edd=', s% L_center / L_Edd(s% mstar), '  L_sat/L_conv=', L_sat_i / L_conv_i, '  f=', f
 
     lnL = log(s% L_center)
     if (have_prev_trial) slope = (f - f_trial_prev) / (lnL - lnL_trial_prev)

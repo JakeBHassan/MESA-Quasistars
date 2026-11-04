@@ -48,7 +48,7 @@ subroutine expand_stop(s, result)
     expand_n = expand_n + 1
     expand_L_hist(mod(expand_n - 1, n_hist) + 1) = s% L_center
     expand_R_hist(mod(expand_n - 1, n_hist) + 1) = s% r(1)
-    if (expand_n >= n_hist + 50 .and. s% L_center < L_lim * L_Edd_step) then
+    if (expand_n >= n_hist + 50 .and. s% L_center < L_lim * L_Edd(s% mstar)) then
         dL = 0d0; dR = 0d0
         do k = 1, n_hist
             dL = max(dL, abs(expand_L_hist(k) / s% L_center - 1d0))

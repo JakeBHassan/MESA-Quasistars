@@ -1,8 +1,11 @@
             pure function integrate(x, y) result(r)
-              real(dp), intent(in)  :: x(:)
-              real(dp), intent(in)  :: y(size(x))
-              real(dp)              :: r
-
+              !! Calculates the integral of an array y with respect to x using the trapezoid
+              !! approximation. Note that the mesh spacing of x does not have to be uniform.
+              real(dp), intent(in)  :: x(:)         !! Variable x
+              real(dp), intent(in)  :: y(size(x))   !! Function y(x)
+              real(dp)              :: r            !! Integral ∫y(x)·dx
+              
+              ! Integrate using the trapezoidal rule
               associate(n => size(x))
                 r = sum((y(1+1:n-0) + y(1+0:n-1))*(x(1+1:n-0) - x(1+0:n-1)))/2
               end associate
@@ -18,65 +21,76 @@
                  real(dp) :: mlost_final, tdyn_final, masslossres, tdyn_final_alt, masslossres_alt, mdot_erupt
                  real(dp), dimension(testsize) ::  t_dyn_test, L_excess_test, E_excess_test, E_excess_pos, masked, masked2, E_diff, E_excess_final, E_binding_final, E_diff_masked, M_above, mdot_loss, Mloss
                  include 'formats'
-
+                 
                  ierr = 0
                  call star_ptr(id, s, ierr)
                  if (ierr /= 0) return
-
+                 
+                 !Find the index at which critical optical depth occurs
                  taucritidxarr = minloc(abs(s% tau(1:s% nz)-(clight/(s% csound(1:s% nz)))))
                  taucritidx = taucritidxarr(1)
-
+                 
+                 !Initialize arrays
                  do i  =1,s% nz
                     t_dyn_test(i) = 0d0
                     L_excess_test(i) = 0d0
                     E_excess_test(i) = 0d0
                  end do
-
+                 
+                 !Calculate dynamical time, excess Luminosity, and excess Energy. 
                  t_dyn_test = ((s% r(1:s% nz))**3/(6.674e-8*s% m(1:s% nz)))**(1.0/2.0)
                  L_excess_test = (s% L(1:s% nz)) - s% L_conv(1:s% nz) - (pi4*clight*s% cgrav(1:s% nz)*s% m_grav(1:s% nz)/(s% opacity(1:s% nz)))
                  E_excess_test = L_excess_test*t_dyn_test
-
+                 
+                 !Mask out negative excess Energy
                  where (E_excess_test < 0)
                      masked2 = 0
                 elsewhere
                      masked2 = E_excess_test
                 end where
-
+                
+                !Mask out where tau < critical tau
                 where ((s% tau(1:s% nz)) > (clight/(s% csound(1:s% nz))))
-                     masked = 0
-                elsewhere
+                     masked = 0 
+                elsewhere 
                      masked = masked2
                 end where
-
+                
+                !Calculate total excess energy from surface to critical tau 
                 do i  =1,s% nz-1
-                     E_excess_final(s% nz+1-i) = -1*integrate(s% m(s% nz-i:s% nz), masked(s% nz-i:s% nz))/ABS(s% m(s% nz+1-i)-s% m(taucritidx))
+                     E_excess_final(s% nz+1-i) = -1*integrate(s% m(s% nz-i:s% nz), masked(s% nz-i:s% nz))/ABS(s% m(s% nz+1-i)-s% m(taucritidx)) !mass method
                 end do
-
+                
+                !Find binding energy, mass above
                 do i = 1, s% nz-1
-                     E_binding_final(i) = SUM(6.674e-8*s% m(1:i)*s% dm(1:i)/s% r(1:i))
+                     E_binding_final(i) = SUM(6.674e-8*s% m(1:i)*s% dm(1:i)/s% r(1:i)) !still right way, surface first
                      M_above(i) = (s% m(1) - s% m(i))/1.9884098706980504d33
                 end do
-
+                
+                !Patch up first element of arrays
                 E_excess_final(1) = E_excess_final(2)
                 E_binding_final(s% nz) = E_binding_final(s% nz-1)
                 M_above(s% nz) = (s% m(1) - s% m(s% nz))/1.9884098706980504d33
-
+                
+                !Define energy difference between excess (due to local supereddington L) and binding
                 E_diff = E_excess_final-E_binding_final
-
+                
+                !Total lost mass: only where E_diff > 0
                 where (E_diff > 0)
                     Mloss = M_above
                 elsewhere
                     Mloss = 0d0
                 end where
-
+                
                 Mloss(taucritidx) = 0d0
+                
+                !Find indices
+                mlost_loc = MAXLOC(Mloss, DIM=1) !E_diff < 0 was set to 0d0 earlier, so can use max() now. Location at first E_diff > 0 location more shallow than critical tau.
+                mlost_final = MAXVAL(Mloss) !Final mass lost
+                
+                tdyn_final = t_dyn_test(mlost_loc)*3.17098d-8 !years
 
-                mlost_loc = MAXLOC(Mloss, DIM=1)
-                mlost_final = MAXVAL(Mloss)
-
-                tdyn_final = t_dyn_test(mlost_loc)*3.17098d-8
-
-                masslossres = mlost_final/tdyn_final
+                masslossres = mlost_final/tdyn_final !Msun/yr
 
                 mdot_erupt = masslossres
 
@@ -87,34 +101,41 @@
 
             end subroutine get_mloss_forwind
 
+
             subroutine erupt_other_wind(id, Lsurf, Msurf, Rsurf, Tsurf, X, Y, Z, wind, ierr)
                use star_def
                integer, intent(in) :: id
-               real(dp), intent(in) :: Lsurf, Msurf, Rsurf, Tsurf, X, Y, Z
-               real(dp), intent(out) :: wind
+               real(dp), intent(in) :: Lsurf, Msurf, Rsurf, Tsurf, X, Y, Z ! surface values (cgs)
+               ! NOTE: surface is outermost cell. not necessarily at photosphere.
+               ! NOTE: don't assume that vars are set at this point.
+               ! so if you want values other than those given as args,
+               ! you should use values from s% xh(:,:) and s% xa(:,:) only.
+               ! rather than things like s% Teff or s% lnT(:) which have not been set yet.
+               real(dp), intent(out) :: wind ! wind in units of Msun/year (value is >= 0)
                integer, intent(out) :: ierr
-
+               
+               
                integer :: h1, he4
                real(dp) :: w, Xs, Ys, Z_div_Z_solar, Teff_jump, alfa, L1, M1, R1, T1, &
                   vink_wind, nieu_wind, hamann_wind, highT_w, lowT_w, Twindow, T_high, T_low, surface_h1, w1, w2, T_decin
-               real(dp), parameter :: Zsolar = 0.019d0
-
+               real(dp), parameter :: Zsolar = 0.019d0 ! for Vink et al formula
+               
                type (star_info), pointer :: s
                ierr = 0
                call star_ptr(id, s, ierr)
                if (ierr /= 0) return
-
+               
                L1 = Lsurf
                M1 = Msurf
                R1 = Rsurf
                T1 = Tsurf
-
+               
                h1 = s% net_iso(ih1)
                he4 = s% net_iso(ihe4)
                Xs = s% xa(h1,1)
                Ys = s% xa(he4,1)
                surface_h1 = s% xa(h1,1)
-
+               
                T_high = 11000
                T_low = 10000
                T_decin = 4000
@@ -125,10 +146,10 @@
                      call eval_lowT_Dutch(wind)
                    else
                      call eval_decin_wind(wind)
-                 end if
+                 end if 
                else if (T1 >= T_high) then
                   call eval_highT_Dutch(wind)
-               else
+               else ! transition
                   call eval_lowT_Dutch(w1)
                   call eval_highT_Dutch(w2)
                   alfa = (T1 - T_low)/(T_high - T_low)
@@ -138,52 +159,64 @@
                s% xtra(23) = s% Dutch_scaling_factor*wind
 
                w = 0
-
+               
                call get_mloss_forwind(id, ierr, s% nz, w)
-
+               
                s% xtra(25) = w * s% x_ctrl(15)
 
                print*, 'Mdot erupt', s% xtra(25)
-
+               
                w = w * s% x_ctrl(15)
-
+               
                wind = w + s% Dutch_scaling_factor*wind
-
+               
                s% xtra(24) = wind
-
+           
                contains
-
+               
                subroutine eval_highT_Dutch(w)
                   real(dp), intent(out) :: w
                   include 'formats'
-                  if (surface_h1 < 0.4d0) then
+                  if (surface_h1 < 0.4d0) then ! helium rich Wolf-Rayet star: Nugis & Lamers
                      w = 1d-11 * pow(L1/Lsun,1.29d0) * pow(Y,1.7d0) * sqrt(Z)
+                     !if (dbg) write(*,1) 'Dutch_wind = Nugis & Lamers', log10(wind)
                   else
                      call eval_Vink_wind(w)
                   end if
                end subroutine eval_highT_Dutch
+
 
                subroutine eval_lowT_Dutch(w)
                   real(dp), intent(out) :: w
                   include 'formats'
                   if (s% Dutch_wind_lowT_scheme == 'de Jager') then
                      call eval_de_Jager_wind(w)
+                     !if (dbg) write(*,1) 'Dutch_wind = de Jager', safe_log10(wind), T1, T_low, T_high
+                  !else if (s% Dutch_wind_lowT_scheme == 'van Loon') then
+                     !call eval_van_Loon_wind(w)
+                     !if (dbg) write(*,1) 'Dutch_wind = van Loon', safe_log10(wind), T1, T_low, T_high
+                  !else if (s% Dutch_wind_lowT_scheme == 'Nieuwenhuijzen') then
+                     !call eval_Nieuwenhuijzen_wind(w)
+                     !if (dbg) write(*,1) 'Dutch_wind = Nieuwenhuijzen', safe_log10(wind), T1, T_low, T_high
+                  !else if (s% Dutch_wind_lowT_scheme == 'Decin') then
+                         !call eval_decin_wind(w)
                   else
                      write(*,*) 'unknown value for Dutch_wind_lowT_scheme ' // &
                         trim(s% Dutch_wind_lowT_scheme)
                      w = 0
                   end if
                end subroutine eval_lowT_Dutch
-
+               
                subroutine eval_Vink_wind(w)
                   real(dp), intent(inout) :: w
                   real(dp) :: alfa, w1, w2, Teff_jump, logMdot, dT, vinf_div_vesc
 
+                  ! alfa = 1 for hot side, = 0 for cool side
                   if (T1 > 27500d0) then
                      alfa = 1
                   else if (T1 < 22500d0) then
                      alfa = 0
-                  else
+                  else ! use Vink et al 2001, eqns 14 and 15 to set "jump" temperature
                      Teff_jump = 1d3*(61.2d0 + 2.59d0*(-13.636d0 + 0.889d0*log10(Z/Zsolar)))
                      dT = 100d0
                      if (T1 > Teff_jump + dT) then
@@ -195,9 +228,9 @@
                      end if
                   end if
 
-                  if (alfa > 0) then
-                     vinf_div_vesc = 2.6d0
-                     vinf_div_vesc = vinf_div_vesc*pow(Z/Zsolar,0.13d0)
+                  if (alfa > 0) then ! eval hot side wind (eqn 24)
+                     vinf_div_vesc = 2.6d0 ! this is the hot side galactic value
+                     vinf_div_vesc = vinf_div_vesc*pow(Z/Zsolar,0.13d0) ! corrected for Z
                      logMdot = &
                         - 6.697d0 &
                         + 2.194d0*log10(L1/Lsun/1d5) &
@@ -211,9 +244,9 @@
                      w1 = 0
                   end if
 
-                  if (alfa < 1) then
-                     vinf_div_vesc = 1.3d0
-                     vinf_div_vesc = vinf_div_vesc*pow(Z/Zsolar,0.13d0)
+                  if (alfa < 1) then ! eval cool side wind (eqn 25)
+                     vinf_div_vesc = 1.3d0 ! this is the cool side galactic value
+                     vinf_div_vesc = vinf_div_vesc*pow(Z/Zsolar,0.13d0) ! corrected for Z
                      logMdot = &
                         - 6.688d0 &
                         + 2.210d0*log10(L1/Lsun/1d5) &
@@ -228,36 +261,51 @@
 
                   w = alfa*w1 + (1 - alfa)*w2
 
+                  !if (dbg) write(*,*) 'vink wind', w
+
                end subroutine eval_Vink_wind
+               
 
                subroutine eval_de_Jager_wind(w)
+                  ! de Jager, C., Nieuwenhuijzen, H., & van der Hucht, K. A. 1988, A&AS, 72, 259.
                   real(dp), intent(out) :: w
                   real(dp) :: log10w
                   include 'formats'
                   log10w = 1.769d0*log10(L1/Lsun) - 1.676d0*log10(T1) - 8.158d0
                   w = exp10(log10w)
+                  !if (dbg) then
+                     !write(*,1) 'de_Jager log10 wind', log10w
+                  !end if
                end subroutine eval_de_Jager_wind
-
+               
                subroutine eval_decin_wind(w)
+                  ! Decin, L. et al. 2024, A&A
                   real(dp), intent(out) :: w
                   real(dp) :: log10w, term1, term2, term3
                   include 'formats'
                   term1 = 1.77d0+0.49d0
                   term2 = -1.68d0 * (s% initial_mass/10d0)
                   term3 = 3.5d0*log10(L1/(1d5*Lsun))
-
+                  
                   log10w = term1+term2+term3
-
+                  
                   w = exp10(log10w)*(1d-5)
+                  ! 1.769d0*log10(L1/Lsun) - 1.676d0*log10(T1) - 8.158d0
                end subroutine eval_decin_wind
-
+               
+               
             end subroutine erupt_other_wind
-
+      
       subroutine brott_wind(id, Lsurf, Msurf, Rsurf, Tsurf, X, Y, Z, w, ierr)
          use star_def
          integer, intent(in) :: id
-         real(dp), intent(in) :: Lsurf, Msurf, Rsurf, Tsurf, X, Y, Z
-         real(dp), intent(out) :: w
+         real(dp), intent(in) :: Lsurf, Msurf, Rsurf, Tsurf, X, Y, Z ! surface values (cgs)
+         ! NOTE: surface is outermost cell. not necessarily at photosphere.
+         ! NOTE: don't assume that vars are set at this point.
+         ! so if you want values other than those given as args,
+         ! you should use values from s% xh(:,:) and s% xa(:,:) only.
+         ! rather than things like s% Teff or s% lnT(:) which have not been set yet.
+         real(dp), intent(out) :: w ! wind in units of Msun/year (value is >= 0)
          integer, intent(out) :: ierr
 
          integer :: h1, he4
@@ -277,7 +325,9 @@
          he4 = s% net_iso(ihe4)
          Xs = s% xa(h1,1)
          Ys = s% xa(he4,1)
+         ! For wind scaling we use the ratio of iron abundance to the A09 value
          Z_div_Z_solar = s% kap_rq% Zbase/0.0142d0
+         ! use Vink et al 2001, eqns 14 and 15 to set "jump" temperature
          Teff_jump = 1d3*(61.2d0 + 2.59d0*(-13.636d0 + 0.889d0*log10(Z_div_Z_solar)))
 
          vink_wind = 0d0
@@ -289,6 +339,7 @@
          call eval_Nieuwenhuijzen_wind(nieu_wind)
          call eval_Hamann_wind(hamann_wind)
 
+         ! use 1/10 hamann
          hamann_wind = hamann_wind/10d0
 
          lowT_w = max(vink_wind, nieu_wind)
@@ -301,6 +352,7 @@
          end if
          highT_w = alfa * vink_wind + (1d0-alfa) * hamann_wind
 
+         ! have a 10% Teff_jump window to switch from the lowT to the highT wind
          Twindow = Teff_jump*0.10d0
          alfa = 0d0
          if (T1 < Teff_jump - Twindow/2d0) then
@@ -310,6 +362,7 @@
          end if
          w = alfa * lowT_w + (1d0-alfa) * highT_w
 
+         ! soften change in wind to avoid things going bad
          if (s% xtra(x_old_wind) /= 0) then
             if(abs(w) > abs(s% xtra(x_old_wind))*1.05) then
                w = s% xtra(x_old_wind)*1.05
@@ -327,6 +380,7 @@
             real(dp), intent(inout) :: w
             real(dp) :: alfa, w1, w2, logMdot, dT, vinf_div_vesc
 
+            ! alfa = 1 for hot side, = 0 for cool side
             if (T1 > 27500d0) then
                alfa = 1
             else if (T1 < 22500d0) then
@@ -341,10 +395,10 @@
                   alfa = (T1 - (Teff_jump - dT)) / (2*dT)
                end if
             end if
-
-            if (alfa > 0) then
-               vinf_div_vesc = 2.6d0
-               vinf_div_vesc = vinf_div_vesc*pow(Z_div_Z_solar,0.13d0)
+            
+            if (alfa > 0) then ! eval hot side wind (eqn 24)
+               vinf_div_vesc = 2.6d0 ! this is the hot side galactic value
+               vinf_div_vesc = vinf_div_vesc*pow(Z_div_Z_solar,0.13d0) ! corrected for Z
                logMdot = &
                   - 6.697d0 &
                   + 2.194d0*log10(L1/Lsun/1d5) &
@@ -357,10 +411,10 @@
             else
                w1 = 0
             end if
-
-            if (alfa < 1) then
-               vinf_div_vesc = 1.3d0
-               vinf_div_vesc = vinf_div_vesc*pow(Z_div_Z_solar,0.13d0)
+            
+            if (alfa < 1) then ! eval cool side wind (eqn 25)
+               vinf_div_vesc = 1.3d0 ! this is the cool side galactic value
+               vinf_div_vesc = vinf_div_vesc*pow(Z_div_Z_solar,0.13d0) ! corrected for Z
                logMdot = &
                   - 6.688d0 &
                   + 2.210d0*log10(L1/Lsun/1d5) &
@@ -372,23 +426,26 @@
             else
                w2 = 0
             end if
-
+            
             w = alfa*w1 + (1 - alfa)*w2
-
+            
          end subroutine eval_Vink_wind
 
          subroutine eval_Nieuwenhuijzen_wind(w)
+            ! Nieuwenhuijzen, H.; de Jager, C. 1990, A&A, 231, 134 (eqn 2)
             real(dp), intent(out) :: w
             real(dp) :: log10w
             include 'formats'
             log10w = -14.02d0 &
                      +1.24d0*log10(L1/Lsun) &
                      +0.16d0*log10(M1/Msun) &
-                     +0.81d0*log10(R1/Rsun)
+                     +0.81d0*log10(R1/Rsun) !&
+             !+0.85d0*log10(Z_div_Z_solar) ! we do not apply the Vink Z scaling here
             w = 10**(log10w)
          end subroutine eval_Nieuwenhuijzen_wind
 
          subroutine eval_Hamann_wind(w)
+            ! Hamann, W.-R.; Koesterke, L.; Wessolowski, U. 1995, A&A, 299, 151
             real(dp), intent(out) :: w
             real(dp) :: log10w
             include 'formats'

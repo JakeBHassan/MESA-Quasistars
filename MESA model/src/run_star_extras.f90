@@ -1,3 +1,25 @@
+! ***********************************************************************
+!
+!   Copyright (C) 2010-2019  Bill Paxton & The MESA Team
+!
+!   this file is part of mesa.
+!
+!   mesa is free software; you can redistribute it and/or modify
+!   it under the terms of the gnu general library public license as published
+!   by the free software foundation; either version 2 of the license, or
+!   (at your option) any later version.
+!
+!   mesa is distributed in the hope that it will be useful,
+!   but without any warranty; without even the implied warranty of
+!   merchantability or fitness for a particular purpose.  see the
+!   gnu library general public license for more details.
+!
+!   you should have received a copy of the gnu library general public license
+!   along with this software; if not, write to the free software
+!   foundation, inc., 59 temple place, suite 330, boston, ma 02111-1307 usa
+!
+! ***********************************************************************
+
 module run_star_extras
 
 use star_lib
@@ -15,7 +37,6 @@ real(dp), save :: N_rs = 0d0
 real(dp), save :: M_BH = 0d0
 logical, save :: bh_frozen = .false.
 
-real(dp), save :: L_Edd_step = 0d0
 real(dp), save :: Mdot_in = 0d0
 real(dp), save :: M_BH_start = 0d0
 real(dp), save :: L_start = 0d0
@@ -33,6 +54,7 @@ include 'other_cgrav.inc'
 include 'other_winds/other_winds.inc'
 include 'other_winds/other_winds_columns.inc'
 
+! these routines are called by the standard run_star check_model
 subroutine extras_controls(id, ierr)
     integer, intent(in) :: id
     integer, intent(out) :: ierr
@@ -52,16 +74,19 @@ subroutine extras_controls(id, ierr)
     s% other_cgrav => my_other_cgrav
     s% other_wind => erupt_other_wind
 
-    eps = s% x_ctrl(1)
-    beta = s% x_ctrl(3)
+    eps = s% x_ctrl(1) ! Radiative efficiency
+    beta = s% x_ctrl(3) ! Convective efficiency
     N_rs = s% x_ctrl(2)
+
     s% job% new_core_mass = s% x_ctrl(4) * s% initial_mass
     s% job% relax_core_years_for_dt = s% x_ctrl(5)
     if (s% x_ctrl(5) <= 0d0) s% job% relax_core_years_for_dt = min(1d0, (s% initial_mass / 1d6)**(-3))
+
     M_BH_initial = s% job% new_core_mass * Msun
     s% job% core_avg_rho = M_BH_initial / (four_thirds_pi * R_i(M_BH_initial)**3)
     s% job% core_avg_eps = L_Edd(s% initial_mass * Msun) / M_BH_initial
     write(*,'(a,es10.3,a,es10.3,a)') '  BH insertion: new_core_mass = ', s% job% new_core_mass, ' Msun, relax_core_years_for_dt = ', s% job% relax_core_years_for_dt, ' yr (extras_controls)'
+
     s% use_other_before_struct_burn_mix = .true.
     s% other_before_struct_burn_mix => apply_boundary_before_solve
 end subroutine extras_controls
@@ -69,7 +94,7 @@ end subroutine extras_controls
 real(dp) function L_sat(s, k)
     type(star_info), pointer :: s
     integer, intent(in) :: k
-    L_sat = beta * 4d0 * pi * s% r(k)**2 * s% Peos(k) * s% csound(k)
+    L_sat = beta * 4d0 * pi * s% r(k)**2 * s% Peos(k) * s% csound(k) ! erg/s
     L_sat = L_sat * s% gamma1(k) / (4d0 * (s% gamma1(k) - 1d0))
 end function L_sat
 
@@ -99,9 +124,8 @@ end subroutine base_convection
 
 subroutine start_accretion_step(s)
     type (star_info), pointer :: s
-    L_Edd_step = L_Edd(s% mstar)
     L_start = starting_L_center(s, s% dt_next)
-    Mdot_in = L_start / (eps * clight**2)
+    Mdot_in = L_start / (eps * clight**2) ! g/s
     M_BH_start = M_BH
 end subroutine start_accretion_step
 
@@ -113,7 +137,7 @@ end function Mdot_BH
 subroutine set_inner_boundary(s, dt_now)
     type(star_info), pointer :: s
     real(dp), intent(in) :: dt_now
-    M_BH = M_BH_start + Mdot_BH() * dt_now
+    M_BH = M_BH_start + Mdot_BH() * dt_now ! g
     s% xtra(1) = M_BH
     s% M_center = M_BH
     s% xmstar = s% mstar - s% M_center
@@ -131,22 +155,24 @@ subroutine insert_black_hole(id, s, ierr)
     call start_accretion_step(s)
     M_BH = M_BH + min(Mdot_BH() * s% dt_next, 0.03d0 * M_BH)
     s% xtra(1) = M_BH
-    new_core_mass = M_BH / Msun
-    core_avg_rho = M_BH / (four_thirds_pi * R_i(M_BH)**3)
-    core_avg_eps = L_start / (new_core_mass * Msun)
-    write(*,'(a,es12.4e3,a,f0.3)') '  BH insertion: M_BH = ', new_core_mass, ' Msun,  L_start/L_Edd ', L_start / L_Edd_step
+    new_core_mass = M_BH / Msun ! new core mass (Msun)
+    core_avg_rho = M_BH / (four_thirds_pi * R_i(M_BH)**3) ! average core density (g / cm^3)
+    core_avg_eps = L_start / (new_core_mass * Msun) ! average energy generation rate (erg / g s)
+    write(*,'(a,es12.4e3,a,f0.3)') '  BH insertion: M_BH = ', new_core_mass, ' Msun,  L_start/L_Edd ', L_start / L_Edd(s% mstar)
     call star_relax_core(id, new_core_mass, s% job% dlg_core_mass_per_step, s% job% relax_core_years_for_dt, core_avg_rho, core_avg_eps, ierr)
 end subroutine insert_black_hole
 
+! adjust all lnR's to keep same density for each cell as 1st guess for next model
 subroutine do1_relax_R_center(s, new_Rcenter)
     type (star_info), pointer :: s
-    real(dp), intent(in) :: new_Rcenter
+    real(dp), intent(in) :: new_Rcenter ! cm
     real(dp) :: dr3, rp13
     integer :: k
     s% R_center = new_Rcenter
+    ! adjust lnR's
     rp13 = new_Rcenter**3
     do k = s% nz, 1, -1
-        dr3 = s% dm(k) / (s% rho(k) * four_thirds_pi)
+        dr3 = s% dm(k) / (s% rho(k) * four_thirds_pi) ! dm/rho is cell volume
         s% xh(s% i_lnR, k) = log(rp13 + dr3) * one_third
         rp13 = rp13 + dr3
     end do
@@ -168,7 +194,7 @@ subroutine extras_startup(id, restart, ierr)
     if (s% model_number == 0) then
         call insert_black_hole(id, s, ierr)
     else
-        M_BH = s% xtra(1)
+        M_BH = s% xtra(1) ! black hole mass (g)
     end if
 end subroutine extras_startup
 
@@ -182,12 +208,14 @@ integer function extras_start_step(id)
     extras_start_step = keep_going
 
     call reset_L_iteration()
+
     call start_accretion_step(s)
     call set_inner_boundary(s, s% dt_next)
     core_inserted = .true.
-    write(*,'(a,i0,a,es9.2e2,a,f0.5,a,f0.3)') ' model ', s% model_number, '  dt(s) ', s% dt_next, '  M_BH/Mstar: ', M_BH / s% mstar, '  L_start/L_Edd ', L_start / L_Edd_step
+    write(*,'(a,i0,a,es9.2e2,a,f0.5,a,f0.3)') ' model ', s% model_number, '  dt(s) ', s% dt_next, '  M_BH/Mstar: ', M_BH / s% mstar, '  L_start/L_Edd ', L_start / L_Edd(s% mstar)
 end function extras_start_step
 
+! returns either keep_going, retry, or terminate.
 integer function extras_check_model(id)
     integer, intent(in) :: id
     integer :: ierr
@@ -210,6 +238,8 @@ integer function extras_check_model(id)
     end if
 end function extras_check_model
 
+! returns either keep_going or terminate.
+! note: cannot request retry; extras_check_model can do that.
 integer function extras_finish_step(id)
     integer, intent(in) :: id
     integer :: ierr
@@ -233,6 +263,9 @@ integer function how_many_extra_history_columns(id)
     how_many_extra_history_columns = 20 + 10
 end function how_many_extra_history_columns
 
+! note: do NOT add the extras names to history_columns.list
+! the history_columns.list is only for the built-in history column options.
+! it must not include the new column names you are adding here.
 subroutine data_for_extra_history_columns(id, n, names, vals, ierr)
     integer, intent(in) :: id, n
     character (len=maxlen_history_column_name) :: names(n)
@@ -240,34 +273,37 @@ subroutine data_for_extra_history_columns(id, n, names, vals, ierr)
     integer, intent(out) :: ierr
     type (star_info), pointer :: s
     integer :: nz, k_mid
+    real(dp) :: L_Edd_star
     ierr = 0
     call star_ptr(id, s, ierr)
     if (ierr /= 0) return
     nz = s% nz
+    L_Edd_star = L_Edd(s% mstar)
     vals(1:n) = -1d99
 
     names(1) = 'M_BH';        vals(1) = M_BH / Msun
     names(2) = 'Mdot_in';     vals(2) = Mdot_in / Msun
     names(3) = 'Mdot_BH';     vals(3) = Mdot_BH() / Msun
-    names(4) = 'L_Edd';       vals(4) = L_Edd_step / Lsun
-    names(5) = 'L_i_over_L_Edd';   vals(5) = s% L_center / L_Edd_step
+    names(4) = 'L_Edd';       vals(4) = L_Edd_star / Lsun ! Eddington luminosity
+    names(5) = 'L_i_over_L_Edd';   vals(5) = s% L_center / L_Edd_star
     names(6) = 'L_conv_base_over_L_Edd'
     names(7) = 'L_sat_over_L_Edd'
     if (L_sat_i_last > 0d0) then
-        vals(6) = L_conv_i_last / L_Edd_step
-        vals(7) = L_sat_i_last / L_Edd_step
+        vals(6) = L_conv_i_last / L_Edd_star
+        vals(7) = L_sat_i_last / L_Edd_star
     end if
 
-    names(8)  = 'rho_i';            vals(8)  = s% rho(nz)
-    names(9)  = 'T_i';              vals(9)  = s% T(nz)
-    names(10) = 'prad_i';           vals(10) = s% prad(nz)
-    names(11) = 'pgas_i';           vals(11) = s% pgas(nz)
-    names(12) = 'cs_i';             vals(12) = s% csound(nz)
-    names(13) = 'gamma1_i';         vals(13) = s% gamma1(nz)
+    names(8)  = 'rho_i';            vals(8)  = s% rho(nz) ! density (g / cm^3)
+    names(9)  = 'T_i';              vals(9)  = s% T(nz) ! temperature (K)
+    names(10) = 'prad_i';           vals(10) = s% prad(nz) ! radiation pressure (dyn / cm^2)
+    names(11) = 'pgas_i';           vals(11) = s% pgas(nz) ! gas pressure (dyn / cm^2)
+    names(12) = 'cs_i';             vals(12) = s% csound(nz) ! speed of sound (cm / s)
+    names(13) = 'gamma1_i';         vals(13) = s% gamma1(nz) ! adiabatic index
     names(14) = 'nabla_ad_i';       vals(14) = s% grada(nz)
     names(15) = 'L_rad_i';          vals(15) = (s% L(nz) - s% L_conv(nz)) / Lsun
     names(16) = 'L_conv_i';         vals(16) = s% L_conv(nz) / Lsun
 
+    ! Values of p_gas/p_rad and the adiabatic index in the middle of the convective envelope
     k_mid = minloc(abs(s% r(1:nz) - 0.5d0 * (s% R_center + s% r(1))), 1)
     names(17) = 'pgas_div_prad';    vals(17) = s% pgas(k_mid) / s% prad(k_mid)
     names(18) = 'gamma_ad';         vals(18) = s% gamma1(k_mid)
